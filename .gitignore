@@ -1,0 +1,12 @@
+*.pdf
+.env
+.venv/
+venv
+node_modules/
+vendor/
+*.secret
+*.log
+npm-debug.log*
+build/
+dist/
+__pycache__/
