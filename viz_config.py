@@ -70,7 +70,7 @@ TAMANHO_TICK    = 8            # tamanho dos números dos eixos e colorbar
 #   'bilinear'   → suavizado, mais lento
 #   'bicubic'    → bem suavizado, mais lento ainda
 #   'spline16'   → suavizado de alta qualidade
-INTERPOLACAO = 'none'
+INTERPOLACAO = 'spline16'
 
 # ============================================================
 # 8. TÍTULO DO GRÁFICO
