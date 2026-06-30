@@ -13,12 +13,12 @@ import time
 import viz_config
 
 # Parâmetros do modelo numérico
-nx = 320         # PAR: Número de pontos na direção x
-ny = 320         # PAR: Número de pontos na direção y
-nt = 400         # Número de pontos na direção t (mais frames = animação mais suave)
+nx = 30         # PAR: Número de pontos na direção x
+ny = 30         # PAR: Número de pontos na direção y
+nt = 30         # Número de pontos na direção t (mais frames = animação mais suave)
 lx = 5.0        # Comprimento do retângulo (domínio)
 ly = 5.0        # Altura do retângulo (domínio)
-tf = 10.0       # Tempo (final) da simulação
+tf = 10         # Tempo (final) da simulação
 dx = lx/nx      # Tamanho do incremento na direção x
 dy = ly/ny      # Tamanho do incremento na direção y
 dt = tf/(nt-1)  # Tamanho do incremento na direção t
@@ -98,4 +98,8 @@ def atualizar(k):
     return [im, titulo]
 
 ani = animation.FuncAnimation(fig, atualizar, frames=nt, interval=80, blit=True)
+
+# ── Tema escuro na janela inteira (barra de título + toolbar) ──
+viz_config.configurar_janela(fig)
+
 plt.show()

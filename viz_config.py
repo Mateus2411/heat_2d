@@ -4,6 +4,8 @@ Arquivo de configuração visual para o heat_2d
 Mexe aqui pra mudar a aparência do gráfico sem bagunçar a simulação!
 """
 
+import sys
+import ctypes
 import matplotlib.pyplot as plt
 
 # ============================================================
@@ -31,7 +33,13 @@ COR_BORDA_DIREITA  = None        # cor da borda direita
 COR_TITULO         = '#e0e0e0'   # cor do texto do título
 COR_GRADE          = '#0f3460'   # cor da grade (se ativada)
 COR_BARRA          = '#e0e0e0'   # cor do texto e ticks da colorbar
+COR_FUNDO_BARRA    = '#1a1a2e'   # fundo do eixo da colorbar (pra não destoar)
 COR_LABEL          = '#e0e0e0'   # cor dos labels dos eixos
+PADDING_SUPERIOR   = 0.95        # posição do topo da área do gráfico (0-1)
+PADDING_INFERIOR   = 0.08        # posição da base (pra footer não ficar claro)
+PADDING_ESQUERDO   = 0.10        # posição da esquerda
+PADDING_DIREITO    = 0.90        # posição da direita (pra incluir a colorbar)
+COR_TICK_CBAR      = '#e0e0e0'   # cor dos números da barra de calor
 
 # ============================================================
 # 3. BORDAS (SPINES) - quais mostrar
@@ -88,6 +96,14 @@ def configurar_figura():
     fig.patch.set_facecolor(COR_FUNDO_FIGURA)
     ax.set_facecolor(COR_FUNDO_GRAFICO)
 
+    # Ajuste do layout pra header e footer ficarem escuros também
+    fig.subplots_adjust(
+        top=PADDING_SUPERIOR,
+        bottom=PADDING_INFERIOR,
+        left=PADDING_ESQUERDO,
+        right=PADDING_DIREITO
+    )
+
     # Bordas (spines)
     for spine_name, mostrar in [
         ('top',   MOSTRAR_BORDA_SUPERIOR),
@@ -125,8 +141,9 @@ def configurar_figura():
 
 def configurar_colorbar(cbar):
     """Aplica estilo na barra de cores."""
-    cbar.ax.tick_params(colors=COR_BARRA, labelsize=TAMANHO_TICK)
+    cbar.ax.tick_params(colors=COR_TICK_CBAR, labelsize=TAMANHO_TICK)
     cbar.outline.set_visible(False)  # tira a borda da barra
+    cbar.ax.set_facecolor(COR_FUNDO_BARRA)  # fundo da barra escuro tb
 
 
 def criar_titulo(ax, texto_inicial):
@@ -142,3 +159,50 @@ def criar_titulo(ax, texto_inicial):
 def atualizar_titulo(titulo, texto):
     """Atualiza o texto do título."""
     titulo.set_text(texto)
+
+
+def configurar_janela(fig):
+    """
+    Aplica tema escuro na janela INTEIRA:
+    - Barra de título (minimizar/maximizar/fechar) no Windows 10/11
+    - Toolbar inferior (Home, Pan, Zoom, etc.)
+    - Fundo da janela
+    """
+    try:
+        fm = fig.canvas.manager
+        janela = fm.window
+
+        # ── 1. Barra de título escura (Windows 10/11 via DWM API) ──
+        if sys.platform == 'win32':
+            try:
+                DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+                hwnd = ctypes.windll.user32.GetParent(janela.winfo_id())
+                valor = ctypes.c_int(1)
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                    hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                    ctypes.byref(valor), ctypes.sizeof(valor))
+            except Exception:
+                pass  # versão do Windows sem suporte → ignora
+
+        # ── 2. Fundo da janela ──
+        janela.config(bg=COR_FUNDO_FIGURA)
+
+        # ── 3. Toolbar inferior escura ──
+        tb = fm.toolbar
+        if tb:
+            tb.config(bg='#1a1a2e')
+            for child in tb.winfo_children():
+                try:
+                    child.config(bg='#1a1a2e', fg='#ffffff')
+                except Exception:
+                    pass
+            # labels dos botões (Message widgets)
+            try:
+                for msg in tb.winfo_children():
+                    if 'message' in str(msg.winfo_class()).lower():
+                        msg.config(bg='#1a1a2e', fg='#ffffff')
+            except Exception:
+                pass
+
+    except Exception:
+        pass  # seguro — se falhar, a simulação roda normal
