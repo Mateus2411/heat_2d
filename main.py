@@ -13,9 +13,9 @@ import time
 import viz_config
 
 # Parâmetros do modelo numérico
-nx = 30         # PAR: Número de pontos na direção x
-ny = 30         # PAR: Número de pontos na direção y
-nt = 30         # Número de pontos na direção t (mais frames = animação mais suave)
+nx = 300        # PAR: Número de pontos na direção x
+ny = 300        # PAR: Número de pontos na direção y
+nt = 300        # Número de pontos na direção t (mais frames = animação mais suave)
 lx = 5.0        # Comprimento do retângulo (domínio)
 ly = 5.0        # Altura do retângulo (domínio)
 tf = 10         # Tempo (final) da simulação
@@ -66,13 +66,19 @@ print("Fase 1: Computando a simulação...")
 t_inicio = time.time()
 
 # Varredura temporal silenciosa (sem render)
+print_each = max(1, nt // 10)  # printa a cada ~10% pra não poluir
 for k in range(1,nt):
     Q = functions.calcula_Q(Q,k*dt,x,y,nx,ny)
     F = a0*T + Q
     T_n = functions.solver(T_n,F,T1,nx,ny,a0,a1,a2,a3,k1,qs,qn,ql,dym1,dxm1,tol,it_m)
+
+    # Guarda resultado no tensor final
+    T_g[:,:,k] = T_n
+    # Prepara T para o próximo passo (T_n vira hot start do solver)
     T = T_n.copy()
-    T_g[:,:,k] = T
-    print(f"  Frame {k}/{nt-1} concluído")
+
+    if k % print_each == 0:
+        print(f"  Frame {k}/{nt-1} concluído")
 
 t_fim = time.time()
 print(f"Computação finalizada em {t_fim-t_inicio:.2f}s\n")
@@ -97,7 +103,7 @@ def atualizar(k):
     viz_config.atualizar_titulo(titulo, f"{viz_config.TITULO_TEXTO} - t = {k*dt:.2f}s")
     return [im, titulo]
 
-ani = animation.FuncAnimation(fig, atualizar, frames=nt, interval=80, blit=True)
+ani = animation.FuncAnimation(fig, atualizar, frames=nt, interval=80, blit=False)
 
 # ── Tema escuro na janela inteira (barra de título + toolbar) ──
 viz_config.configurar_janela(fig)
