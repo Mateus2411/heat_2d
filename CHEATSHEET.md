@@ -1,249 +1,183 @@
-# 🧠 Cola do Heat 2D — Simulação de Condução Térmica
+# Functions — Heat 2D
 
-> Tudo que você pode mexer, o que cada coisa faz, e como a mágica acontece
+## Visão Geral
 
----
+O `functions.py` contém o coração numérico da simulação de transferência de calor 2D. Ele resolve a **equação do calor não-linear** com condutividade térmica dependente da temperatura:
 
-## 📐 1. PARÂMETROS NUMÉRICOS (no `main.py`)
+\[
+\rho c_p \frac{\partial T}{\partial t} = \nabla \cdot \big( k(T) \nabla T \big) + Q
+\]
 
-| Variável | Default | O que controla | Efeito se aumentar 🔼 |
-|----------|---------|----------------|----------------------|
-| `nx` | 60 | Pontos na direção X (horizontal) | 🔸 **Mais resolução espacial** — bordas mais nítidas, mas **simulação mais lenta** (mais pontos pra calcular) |
-| `ny` | 60 | Pontos na direção Y (vertical) | 🔸 Mesmo que `nx`, só que na vertical |
-| `nt` | 160 | Número de frames (passos de tempo) | 🔸 **Animação mais suave/longa** — mais frames, mas demora mais pra computar |
-| `lx` | 5.0 | Comprimento do domínio em X | 🔸 Domínio mais largo. A água esquenta/esfria numa área maior |
-| `ly` | 5.0 | Altura do domínio em Y | 🔸 Domínio mais alto |
-| `tf` | 10.0 | Tempo total da simulação (segundos) | 🔸 **Simulação mais longa** — o calor se espalha por mais tempo. Quanto maior `tf`, mais frames precisa pra mesma suavidade |
-| `tol` | 1e-4 | Tolerância de erro do solver | 🔸 (diminuir) Mais preciso, mas mais iterações. 🔹 (aumentar) Mais rápido, mas menos preciso |
-| `it_m` | 100 | Máximo de iterações por passo | 🔸 Solver tenta mais antes de desistir. Bom se tiver `tol` muito baixa |
-
-### 🧮 Derivados (calculados automaticamente)
-
-| Variável | Fórmula | O que é |
-|----------|---------|---------|
-| `dx` | `lx / nx` | Espaçamento entre pontos em X (resolução) |
-| `dy` | `ly / ny` | Espaçamento entre pontos em Y |
-| `dt` | `tf / (nt-1)` | Quanto tempo real cada frame representa |
-
-> 💡 **Dica rápida:** Se a animação ficar muito rápida ou muito lenta, mexe em `nt` e `tf`. Se ficar pixelada, aumenta `nx`/`ny`.
+Onde \( k(T) = k_0 e^{k_1 (T - T_1)} \) — a condutividade varia exponencialmente com a temperatura.
 
 ---
 
-## 🔥 2. PARÂMETROS FÍSICOS (no `main.py`)
+## `calcula_Q(Qf, temp, xf, yf, nxf, nyf)`
 
-| Variável | Default | O que controla | Efeito se aumentar 🔼 |
-|----------|---------|----------------|----------------------|
-| `rho` | 1.0 | Densidade do material | 🔸 Mais denso = mais inércia térmica, esquenta/esfria mais devagar |
-| `cp` | 3.0 | Calor específico | 🔸 Armazena mais calor — mesma energia aumenta menos a temperatura |
-| `k0` | 0.5 | Condutividade térmica base | 🔸 **Calor se espalha mais rápido** pelo material. Se `k0=0`, material é isolante |
-| `k1` | 0.01 | Sensibilidade da condutividade à temperatura | 🔸 `k(T)` varia mais com a temperatura. **Efeito não-linear** mais forte |
-| `T1` | 100.0 | Temperatura de referência pra `k(T)` | Onde a condutividade `k0` é medida. Desloca a curva exponencial |
-| `qs` | -10.0 | Fluxo de calor na borda **Sul** | 🔸 **Positivo** (`>0`) → **perde calor** pelo sul. 🔹 **Negativo** (`<0`) → **ganha calor** pelo sul |
-| `ql` | 10.0 | Fluxo de calor na borda **Leste** | 🔸 **Positivo** (`>0`) → **perde calor** pela direita. 🔹 **Negativo** (`<0`) → **ganha calor** pela direita |
-| `qn` | 10.0 | Fluxo de calor na borda **Norte** | 🔸 **Positivo** (`>0`) → **perde calor** pelo topo. 🔹 **Negativo** (`<0`) → **ganha calor** pelo topo |
-| `T0` | 20.0 | Temperatura inicial de todo o domínio | 🔸 Começa mais quente |
-| `To` | 100.0 | Temperatura fixa na **parede Leste** | 🔸 Fonte de calor na borda direita |
-
-### 🧪 Condutividade Térmica — `K(T) = k0 * exp(k1 * (T - T1))`
-
-- `k0` é o valor base
-- `k1 > 0` → material conduz **melhor** quando **mais quente** (metal)
-- `k1 < 0` → material conduz **melhor** quando **mais frio** (alguns semicondutores)
-- `k1 = 0` → condutividade **constante** (simulação linear, mais rápida)
-
-### 🔄 Por que positivo = perde calor?
-
-No código, os fluxos aparecem como `-2.0 * qs * dym1f` na equação:
+**O que faz:** Calcula o termo fonte \( Q \) (geração interna de calor) em cada ponto da malha.
 
 ```python
-fonte = ... - 2.0*qsf*dym1f    # (linha 29 do functions.py)
+Qf[:, :] = 3.0 * temp * np.exp(-temp) * (1.0 + 5.0*X + Y + 10.0*X*Y)
 ```
 
-O sinal de **menos** na frente faz com que:
-- `qs > 0` → `-2.0*qs*...` = termo **negativo** → **remove calor** (resfriamento)
-- `qs < 0` → `-2.0*(-10)*...` = `+20*...` = **adiciona calor** (aquecimento)
+- `temp` = instante de tempo atual (`k*dt`)
+- `X, Y` = coordenadas normalizadas via broadcasting (`xf[None, :]` e `yf[:, None]`)
+- O termo fonte é **não-homogêneo** no espaço (depende de x e y) e **decai exponencialmente** no tempo com `temp * exp(-temp)`
 
-É uma convenção de sinal comum em CFD: fluxo **positivo** = calor **saindo** do domínio (derivada apontando pra fora).
-
-### 🔌 Fonte de Calor Interna — `calcula_Q()` (no `functions.py`)
-
-Distribuição espacial que varia no tempo:
-```
-Q(x, y, t) = 3*t*exp(-t) * (1 + 5x + y + 10xy)
-```
-- Começa fraca, cresce até `t ≈ 1`, depois decai (pulso de calor)
-- Mais intensa nos cantos X e Y grandes (canto Nordeste)
+**Por que vetorizado:** Usa broadcasting do NumPy em vez de loops `for` — resolve a matriz inteira de uma vez, ~10x mais rápido que a versão com loops.
 
 ---
 
-## ⚙️ 3. CONFIGURAÇÃO VISUAL (no `viz_config.py`)
+## `max_abs_matrix(A)`
 
-### 🎨 Cores
+**O que faz:** Calcula a **norma do máximo** (norma infinito) de uma matriz — o maior valor absoluto entre todos os elementos.
 
-| Variável | Default | O que faz |
-|----------|---------|-----------|
-| `COLORMAP` | `'coolwarm'` | Paleta de cores do mapa de calor |
-| `COR_FUNDO_FIGURA` | `'#1a1a2e'` | Fundo da janela inteira |
-| `COR_FUNDO_GRAFICO` | `'#16213e'` | Fundo da área do gráfico |
-| `COR_TITULO` | `'#e0e0e0'` | Cor do título |
-| `COR_GRADE` | `'#0f3460'` | Cor da grade (se ligada) |
-| `COR_BARRA` | `'#e0e0e0'` | Texto e números da colorbar |
-| `COR_LABEL` | `'#e0e0e0'` | Labels dos eixos X/Y |
+```python
+for i in range(ny):
+    for j in range(nx):
+        v = fabs(A[i, j])
+        if v > m: m = v
+```
 
-### 📐 Layout
+**Por que Numba:** `np.max(np.abs(A))` aloca duas matrizes temporárias (uma pro `abs`, uma pro `max`). Essa versão percorre uma vez só, sem alocar nada. Economia de memória e cache.
 
-| Variável | Default | O que faz |
-|----------|---------|-----------|
-| `LARGURA_JANELA` | 8 | Largura da figura em polegadas |
-| `ALTURA_JANELA` | 7 | Altura da figura em polegadas |
-| `TAMANHO_TITULO` | 14 | Tamanho da fonte do título |
-| `TAMANHO_LABEL` | 10 | Tamanho dos labels dos eixos |
-| `TAMANHO_TICK` | 8 | Tamanho dos números nos eixos |
-
-### 🔲 Bordas & Grade
-
-| Variável | Default | O que faz |
-|----------|---------|-----------|
-| `MOSTRAR_BORDA_SUPERIOR` | `False` | Mostra borda no topo |
-| `MOSTRAR_BORDA_INFERIOR` | `False` | Mostra borda embaixo |
-| `MOSTRAR_BORDA_ESQUERDA` | `False` | Mostra borda à esquerda |
-| `MOSTRAR_BORDA_DIREITA` | `False` | Mostra borda à direita |
-| `MOSTRAR_GRADE` | `False` | Liga a grade |
-| `GRADE_ESTILO` | `'--'` | Estilo da linha: `'-'` sólida, `'--'` tracejada, `':'` pontilhada |
-
-### 🖼️ Interpolação
-
-| Opção | Efeito |
-|-------|--------|
-| `'none'` | Pixelado, mais rápido (bom pra muitos pontos) |
-| `'bilinear'` | Suavizado |
-| `'bicubic'` | Bem suavizado |
-| `'spline16'` | Alta qualidade |
-
-### 🎯 Colormaps legais pra testar
-
-| Nome | Visual |
-|------|--------|
-| `'coolwarm'` | Azul ↔ Vermelho (neutro no meio) |
-| `'magma'` | Preto → Roxo → Amarelo (intenso) |
-| `'viridis'` | Roxo → Verde → Amarelo (daltônico-safe) |
-| `'inferno'` | Preto → Vermelho → Amarelo |
-| `'plasma'` | Roxo escuro → Vermelho → Amarelo |
-| `'hot'` | Preto → Vermelho → Amarelo → Branco |
-| `'jet'` | Arco-íris (clássico, pode enganar visualmente) |
+**Uso:** Usada no `solver` como denominador do critério de parada.
 
 ---
 
-## 🎬 4. COMO A ANIMAÇÃO FUNCIONA
+## `resolve_newton(Tnf, T1f, fontef, k1f, a0f, a1f, tolf, it_mf)`
 
-### Fase 1 — Computação (~ silenciosa ~)
+**O que faz:** Resolve a **equação não-linear local** em um único ponto usando o método de **Newton-Raphson**.
 
-```
-for k in 1..nt-1:
-    calcula fonte de calor Q no tempo k
-    monta vetor fonte F = a0*T + Q
-    solver(T_n, F) → resolve sistema não-linear (Newton)
-    guarda T no tensor T_g[:, :, k]
-```
+A equação que ela resolve vem da discretização:
 
-- O `solver()` usa **Newton-Raphson** dentro de um **loop global** (Gauss-Seidel-like)
-- Percorre: Sul → Pontos Internos → Norte → Sudeste → Leste → Nordeste
-- Aplica as condições de contorno de fluxo (`qs`, `ql`, `qn`) nas bordas
-- A parede **Leste** (`j = nx-1`) tem temperatura **fixa** `To`
-- Critério de parada do solver global: `erro < tol` ou `it > it_m`
-- No final, `T_g` é um tensor 3D: `[y, x, tempo]` — todos os frames pré-computados
+\[
+G(T) = a_0 T + a_1 e^{k_1 (T - T_1)} = \text{fonte}
+\]
 
-### Fase 2 — Renderização (animação suave)
+E o chute de Newton:
 
-```
-ani = FuncAnimation(fig, atualizar, frames=nt, interval=80, blit=True)
-```
+\[
+T^{n+1} = T^n + \frac{\text{fonte} - G(T^n)}{a_0 + k_1 a_1 e^{k_1 (T - T_1)}}
+\]
 
-- `atualizar(k)`: troca os dados da imagem `im.set_data(T_g[:,:,k])` e atualiza o título com o tempo atual
-- `interval=80`: **80ms entre frames** (~12.5 FPS)
-- `blit=True`: só redesenha o que mudou (mais rápido)
-- `vmin=T0, vmax=To`: escala de cores fixa (não adaptativa) — a cor não "foge" conforme a temperatura muda
+**Detalhes importantes:**
 
-### ⏱️ Duração real da animação
+- Usa `math.exp()` escalar — **sem alocar array**, cada chamada é uma exponencial só
+- Divide o erro por `|Tn0|` (normalização relativa) — se o valor inicial for zero, usa 1.0 pra não dividir por zero
+- O loop interno usa `fabs()` do C (`math.fabs`)
 
-```
-duração_real = nt * interval / 1000
-Ex: 160 frames * 80ms = 12.8 segundos
-```
-
-Se `tf` for 10s com `nt=160`, cada frame representa `dt = 10/159 ≈ 0.063s`.
+**Por que Numba:** Esse cálculo é chamado ~**O(nx × ny × iterações)** vezes. Cada exponencial numpy custa overhead de chamada de função Python. Com `@njit`, vira uma chamada de função C pura.
 
 ---
 
-## 🧪 5. EXPERIMENTOS RÁPIDOS PRA TESTAR
+## `preencher_exp(Ef, Tnf, k1f, T1f)`
 
-### 🔹 Mais suave e lento
-```
-nx = 100, ny = 100   # mais resolução
-nt = 300              # mais frames
-interval = 120        # mais lento (no viz_config ou alterando)
-```
+**O que faz:** Pré-computa a matriz de exponenciais \( E = e^{k_1 (T - T_1)} \) para **toda a malha**.
 
-### 🔹 Mais rápido pra debug
-```
-nx = 30, ny = 30     # menos pontos
-nt = 60              # menos frames
+```python
+for i in range(ny):
+    for j in range(nx):
+        Ef[i, j] = exp(k1f * (Tnf[i, j] - T1f))
 ```
 
-### 🔹 Material isolante
+**Por que uma função separada:** As exponenciais reaparecem em várias fórmulas no solver. Em vez de recalcular `np.exp(k1*(T[i,j+1]-T1))` cada vez que precisa, calcula uma vez e reusa. Aumenta a **localidade de dados** — as exponenciais ficam em cache.
+
+---
+
+## `solver(Tnf, Ff, T1f, nxf, nyf, a0f, a1f, a2f, a3f, k1f, qsf, qnf, qlf, dym1f, dxm1f, tolf, it_mf)`
+
+**O que faz:** O **coração da simulação** — resolve o sistema algébrico não-linear acoplado ponto a ponto usando o método de **Gauss-Seidel não-linear**.
+
+### Algoritmo
+
 ```
-k0 = 0.01            # quase não conduz
-k1 = 0.0             # linear (mais rápido)
+1. Pré-computa matriz de exponenciais E = exp(k1*(T - T1))
+2. Enquanto erro > tol e it < it_max:
+   a. Para cada coluna j (1 até nx-2):
+      - Sul:     resolve Newton (ponto [0,j])     com cond. contorno qs
+      - Interno: resolve Newton (pontos [i,j])     sem cond. contorno
+      - Norte:   resolve Newton (ponto [ny-1,j])   com cond. contorno qn
+   b. Canto Sudeste:  resolve Newton c/ qs + ql
+   c. Leste:          resolve Newton c/ ql
+   d. Canto Nordeste: resolve Newton c/ ql + qn
+   e. Atualiza erro = max_diff / denom_g
 ```
 
-### 🔹 Material super condutor
-```
-k0 = 5.0             # espalha rápido
-```
+### Discretização
 
-### 🔹 Explosão de calor nas bordas (quentura!)
-```
-qs = -50, ql = -50, qn = -50   # negativo → CALOR ENTRA pelos lados
-```
+Usa **diferenças finitas centradas** no espaço e **Euler implícito** no tempo. A equação discretizada num ponto interior é:
 
-### 🔹 Só parede quente, sem fluxo extra
-```
-qs = 0, ql = 0, qn = 0      # só a parede Leste aquece
-```
+\[
+a_0 T_{i,j} + a_1 e^{k_1(T_{i,j} - T_1)} = F_{i,j} + a_2 (E_{i,j+1} + E_{i,j-1}) + a_3 (E_{i+1,j} + E_{i-1,j})
+\]
 
-### 🔹 Esfriando (perdendo calor)
+Onde:
+- \( a_0 = \rho c_p / \Delta t \) — termo temporal
+- \( a_1 = 2 \left( \frac{k_0}{k_1 \Delta x^2} + \frac{k_0}{k_1 \Delta y^2} \right) \) — coeficiente do termo não-linear
+- \( a_2 = \frac{k_0}{k_1 \Delta x^2} \) — coeficiente dos vizinhos em x
+- \( a_3 = \frac{k_0}{k_1 \Delta y^2} \) — coeficiente dos vizinhos em y
+
+### Condições de Contorno
+
+São aplicadas **explicitamente** no lado direito da equação (como fonte extra) usando **Neumann** (fluxo prescrito):
+
+| Fronteira | Fluxo | Termo adicional |
+|-----------|-------|-----------------|
+| Sul (y=0) | `qs` | `-2 * qs * Δy⁻¹` |
+| Norte (y=ly) | `qn` | `-2 * qn * Δy⁻¹` |
+| Leste (x=lx) | `ql` | `-2 * ql * Δx⁻¹` |
+| Cantos | qs+ql, ql+qn | Soma dos dois termos |
+
+Valores negativos de `qs` = **entra** calor, positivos = **sai** calor.
+
+### Critério de Parada
+
+\[
+\text{erro} = \frac{\max_{i,j} |T_{i,j}^{new} - T_{i,j}^{old}|}{\max_{i,j} |T_{i,j}^{new}|}
+\]
+
+Erro relativo baseado na **variação máxima** entre iterações. Mais robusto que erro absoluto quando a temperatura escala.
+
+### Por que Gauss-Seidel em vez de resolver matriz?
+
+O sistema é **não-linear** por causa do termo \( e^{k_1 (T - T_1)} \). Não dá pra montar uma matriz \( A x = b \) e resolver direto. Gauss-Seidel não-linear + Newton-Raphson local é o padrão para esse tipo de problema — cada ponto resolve sua não-linearidade local com Newton enquanto "enxerga" os vizinhos.
+
+### Por que Numba é crucial aqui
+
+O `solver` tem **3 loops aninhados**: colunas × linhas × iterações externas. Cada iteração externa percorre todos os \( n_x \times n_y \) pontos. Para uma malha 100×100 com ~10 iterações externas, são **100 mil chamadas** a funções. `@njit` compila tudo pra código de máquina — sem interpretador Python atrapalhando.
+
+---
+
+## Fluxo de Execução
+
 ```
-qs = 50, ql = 50, qn = 50  # positivo → CALOR SAI pelas bordas
+main.py (loop temporal)
+  │
+  ├─ calcula_Q(...)          ← termo fonte no instante t
+  ├─ F = a0*T + Q            ← monta lado direito
+  └─ solver(T_n, F, ...)
+       │
+       ├─ preencher_exp()    ← E = exp(k1*(T - T1))
+       │
+       └─ [loop Gauss-Seidel]
+            │
+            ├─ resolve_newton()  ← Sul
+            ├─ resolve_newton()  ← Internos
+            ├─ resolve_newton()  ← Norte
+            ├─ resolve_newton()  ← Sudeste
+            ├─ resolve_newton()  ← Leste
+            └─ resolve_newton()  ← Nordeste
 ```
 
 ---
 
-## 🚀 6. COMO RODAR
+## Sobre o Numba
 
-```bash
-# Ativar venv e rodar
-source .venv/Scripts/activate
-python main.py
-```
+O `@njit(fastmath=True, cache=True)` faz:
 
-> A simulação roda em 2 fases:
-> 1. **Computação** — prints de progresso (frame a frame)
-> 2. **Animação** — janela matplotlib com o vídeo
+- **`@njit`** = "no-Python mode" — compila a função inteira pra LLVM IR e depois pra código de máquina
+- **`fastmath=True`** — permite reordenar operações e usar instruções SIMD (como AVX/SSE), trocando precisão máxima por ~2× de velocidade
+- **`cache=True`** — salva o código compilado em disco (`__pycache__`). Na segunda execução, zero tempo de compilação
 
----
-
-## ⚠️ 7. PITFALLS (coisas que podem dar errado)
-
-| Problema | Causa | Solução |
-|----------|-------|---------|
-| Animação muito rápida | `interval` pequeno ou `nt` baixo | Aumenta `nt` ou `interval` |
-| Animação muito lenta | `interval` grande ou `nt` alto | Diminui `nt` ou `interval` |
-| Tudo da mesma cor | `vmax` muito alto pra temperatura real | Ajusta `vmax` pra temperatura máxima que aparece |
-| Cores estouram | `vmin`/`vmax` mal dimensionados | Muda `vmax` pro máximo real dos dados |
-| Demora séculos pra rodar | `nx, ny` altos + `nt` alto | Reduz pra 30×30×60 pra testar |
-| Solver não converge | `it_m` baixo ou `tol` apertada demais | Aumenta `it_m` ou afrouxa `tol` |
-| Erro NaN/inf | Parâmetro físico muito extremo | Verifica `k0, k1, qs, ql, qn` |
-| Gradiente explode | `k1` muito alto com temperaturas altas | Reduz `k1` ou aumenta `T1` |
-
----
-
+As funções Numba **não podem** chamar NumPy (a não ser funções suportadas como `np.empty_like`) — por isso os loops manuais e `math.exp` em vez de `np.exp`.

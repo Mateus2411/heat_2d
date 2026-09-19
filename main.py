@@ -15,10 +15,10 @@ import viz_config
 # Parâmetros do modelo numérico
 nx = 300        # PAR: Número de pontos na direção x
 ny = 300        # PAR: Número de pontos na direção y
-nt = 300        # Número de pontos na direção t (mais frames = animação mais suave)
+nt = 1000        # Número de pontos na direção t (mais frames = animação mais suave)
 lx = 5.0        # Comprimento do retângulo (domínio)
 ly = 5.0        # Altura do retângulo (domínio)
-tf = 10         # Tempo (final) da simulação
+tf = 100         # Tempo (final) da simulação
 dx = lx/nx      # Tamanho do incremento na direção x
 dy = ly/ny      # Tamanho do incremento na direção y
 dt = tf/(nt-1)  # Tamanho do incremento na direção t
@@ -66,7 +66,6 @@ print("Fase 1: Computando a simulação...")
 t_inicio = time.time()
 
 # Varredura temporal silenciosa (sem render)
-print_each = max(1, nt // 10)  # printa a cada ~10% pra não poluir
 for k in range(1,nt):
     Q = functions.calcula_Q(Q,k*dt,x,y,nx,ny)
     F = a0*T + Q
@@ -77,8 +76,7 @@ for k in range(1,nt):
     # Prepara T para o próximo passo (T_n vira hot start do solver)
     T = T_n.copy()
 
-    if k % print_each == 0:
-        print(f"  Frame {k}/{nt-1} concluído")
+    print(f"  Frame {k}/{nt-1} concluído")
 
 t_fim = time.time()
 print(f"Computação finalizada em {t_fim-t_inicio:.2f}s\n")
