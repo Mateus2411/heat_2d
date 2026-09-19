@@ -25,6 +25,7 @@ Simulacao bidimensional da transferencia de calor por conducao em uma placa. A c
 | `CHEATSHEET.md` | Explica os parametros, a discretizacao, o solver e os pontos de configuracao. |
 | `requirements.txt` | Dependencias externas fixadas para reproduzir o ambiente funcional. |
 | `setup.ps1` | Cria o ambiente virtual, instala as dependencias e executa a simulacao no Windows. |
+| `setup.sh` | Cria o ambiente virtual, instala as dependencias e executa a simulacao no Linux. |
 | `.gitignore` | Evita versionar ambientes virtuais, caches, logs e arquivos locais. |
 
 ## Fluxo numerico
@@ -56,6 +57,7 @@ Aumentar `nx`, `ny` ou `nt` melhora a resolucao, mas aumenta memoria e tempo. A 
 ## Requisitos
 
 - Windows PowerShell 5+ ou PowerShell 7+
+- Linux com Bash
 - Python 3.11 ou superior
 - Acesso a internet na primeira instalacao das dependencias
 
@@ -76,12 +78,35 @@ Para apenas preparar o ambiente sem iniciar a animacao:
 .\setup.ps1 -SkipRun
 ```
 
+## Execucao automatica no Linux
+
+Na pasta do projeto, de permissao ao script e execute:
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+Para apenas preparar o ambiente sem iniciar a animacao:
+
+```bash
+./setup.sh --skip-run
+```
+
 ## Execucao manual
 
 ```powershell
 py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe main.py
+```
+
+No Linux:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python main.py
 ```
 
 ## Estrutura esperada
@@ -94,6 +119,7 @@ heat_2d/
 |-- CHEATSHEET.md
 |-- requirements.txt
 |-- setup.ps1
+|-- setup.sh
 |-- README.md
 `-- .gitignore
 ```
