@@ -13,12 +13,12 @@ import time
 import viz_config
 
 # Parâmetros do modelo numérico
-nx = 300        # PAR: Número de pontos na direção x
-ny = 300        # PAR: Número de pontos na direção y
-nt = 1000        # Número de pontos na direção t (mais frames = animação mais suave)
+nx = 30        # PAR: Número de pontos na direção x
+ny = 30        # PAR: Número de pontos na direção y
+nt = 100        # Número de pontos na direção t (mais frames = animação mais suave)
 lx = 5.0        # Comprimento do retângulo (domínio)
 ly = 5.0        # Altura do retângulo (domínio)
-tf = 100         # Tempo (final) da simulação
+tf = 10         # Tempo (final) da simulação
 dx = lx/nx      # Tamanho do incremento na direção x
 dy = ly/ny      # Tamanho do incremento na direção y
 dt = tf/(nt-1)  # Tamanho do incremento na direção t
